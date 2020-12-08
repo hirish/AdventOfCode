@@ -52,7 +52,7 @@ fn parse_line(line: &str) -> Instruction {
     Instruction { opcode, n }
 }
 
-fn run(lines: Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
+fn run(lines: &Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
     let mut pos: usize = 0;
     let mut acc = 0;
     let mut visited: HashSet<usize> = HashSet::new();
@@ -69,15 +69,10 @@ fn run(lines: Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
             visited.insert(pos);
         }
 
-        let Instruction { opcode, n } = if let Some(p) = patch {
-            if p.line == pos {
-                p.instruction
-            } else {
-                lines[pos]
-            }
-        } else {
-            lines[pos]
-        };
+        let Instruction { opcode, n } = patch
+            .filter(|p| p.line == pos)
+            .map(|p| p.instruction)
+            .unwrap_or(lines[pos]);
 
         match opcode {
             Opcode::Nop => pos += 1,
@@ -94,7 +89,7 @@ fn run(lines: Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
 
 fn part_1(input: String) -> i32 {
     let lines: Vec<Instruction> = input.lines().map(parse_line).collect();
-    run(lines, None).1
+    run(&lines, None).1
 }
 
 fn part_2(input: String) -> i32 {
@@ -103,8 +98,8 @@ fn part_2(input: String) -> i32 {
     for (i, instruction) in lines.iter().enumerate() {
         let (infinite_loop, acc) = match instruction.opcode {
             Opcode::Acc => continue,
-            Opcode::Nop => run(lines.clone(), Some(Patch::new(i, "jmp", instruction.n))),
-            Opcode::Jmp => run(lines.clone(), Some(Patch::new(i, "nop", instruction.n))),
+            Opcode::Nop => run(&lines, Some(Patch::new(i, "jmp", instruction.n))),
+            Opcode::Jmp => run(&lines, Some(Patch::new(i, "nop", instruction.n))),
         };
         if !infinite_loop {
             return acc;
