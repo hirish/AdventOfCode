@@ -1,5 +1,14 @@
 use aoc::read_stdin;
 use std::collections::HashSet;
+use std::str::FromStr;
+
+#[derive(Debug)]
+enum AocError {
+    OpCodeError(String),
+    ProgramError,
+}
+
+type Result<T> = std::result::Result<T, AocError>;
 
 #[derive(Copy, Clone)]
 enum Opcode {
@@ -8,13 +17,15 @@ enum Opcode {
     Acc,
 }
 
-impl Opcode {
-    fn new(opcode: &str) -> Self {
+impl FromStr for Opcode {
+    type Err = AocError;
+
+    fn from_str(opcode: &str) -> Result<Self> {
         match opcode {
-            "nop" => Self::Nop,
-            "jmp" => Self::Jmp,
-            "acc" => Self::Acc,
-            _ => panic!("Unknown opcode {}", opcode),
+            "nop" => Ok(Self::Nop),
+            "jmp" => Ok(Self::Jmp),
+            "acc" => Ok(Self::Acc),
+            _ => Err(AocError::OpCodeError(opcode.to_string())),
         }
     }
 }
@@ -25,6 +36,21 @@ struct Instruction {
     n: i32,
 }
 
+impl FromStr for Instruction {
+    type Err = AocError;
+
+    fn from_str(line: &str) -> Result<Self> {
+        let opcode: Opcode = line[0..3].parse()?;
+        let sign: char = line.chars().nth(4).unwrap();
+        let value = line[5..].parse().unwrap();
+        let n: i32 = match sign {
+            '-' => 0 - value,
+            _ => value,
+        };
+        Ok(Instruction { opcode, n })
+    }
+}
+
 #[derive(Copy, Clone)]
 struct Patch {
     line: usize,
@@ -32,24 +58,19 @@ struct Patch {
 }
 
 impl Patch {
-    fn new(line: usize, opcode: &str, n: i32) -> Self {
+    fn new(line: usize, opcode: &str, n: i32) -> Result<Self> {
         let instruction = Instruction {
-            opcode: Opcode::new(opcode),
+            opcode: opcode.parse()?,
             n,
         };
-        Patch { line, instruction }
+        Ok(Patch { line, instruction })
     }
 }
 
-fn parse_line(line: &str) -> Instruction {
-    let opcode: Opcode = Opcode::new(&line[0..3]);
-    let sign: char = line.chars().nth(4).unwrap();
-    let value = line[5..].parse().unwrap();
-    let n: i32 = match sign {
-        '-' => 0 - value,
-        _ => value,
-    };
-    Instruction { opcode, n }
+fn parse_lines(input: String) -> Result<Vec<Instruction>> {
+    Ok(input.lines()
+        .map(|x| x.parse())
+        .collect::<Result<Vec<Instruction>>>()?)
 }
 
 fn run(lines: &Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
@@ -87,29 +108,30 @@ fn run(lines: &Vec<Instruction>, patch: Option<Patch>) -> (bool, i32) {
     (infinite_loop, acc)
 }
 
-fn part_1(input: String) -> i32 {
-    let lines: Vec<Instruction> = input.lines().map(parse_line).collect();
-    run(&lines, None).1
+fn part_1(input: String) -> Result<i32> {
+    let instructions = parse_lines(input)?;
+    Ok(run(&instructions, None).1)
 }
 
-fn part_2(input: String) -> i32 {
-    let lines: Vec<Instruction> = input.lines().map(parse_line).collect();
+fn part_2(input: String) -> Result<i32> {
+    let instructions = parse_lines(input)?;
 
-    for (i, instruction) in lines.iter().enumerate() {
+    for (i, instruction) in instructions.iter().enumerate() {
         let (infinite_loop, acc) = match instruction.opcode {
             Opcode::Acc => continue,
-            Opcode::Nop => run(&lines, Some(Patch::new(i, "jmp", instruction.n))),
-            Opcode::Jmp => run(&lines, Some(Patch::new(i, "nop", instruction.n))),
+            Opcode::Nop => run(&instructions, Some(Patch::new(i, "jmp", instruction.n)?)),
+            Opcode::Jmp => run(&instructions, Some(Patch::new(i, "nop", instruction.n)?)),
         };
         if !infinite_loop {
-            return acc;
+            return Ok(acc);
         }
     }
-    panic!("Couldn't solve")
+    Err(AocError::ProgramError)
 }
 
-fn main() {
+fn main() -> Result<()> {
     let lines = read_stdin();
-    println!("Answer 1: {}", part_1(lines.clone()));
-    println!("Answer 2: {}", part_2(lines.clone()));
+    println!("Answer 1: {}", part_1(lines.clone())?);
+    println!("Answer 2: {}", part_2(lines.clone())?);
+    Ok(())
 }
