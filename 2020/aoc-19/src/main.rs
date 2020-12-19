@@ -30,7 +30,7 @@ impl FromStr for Rule {
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         if input.contains("\"") {
             Ok(Rule::Is(IsRule {
-                val: input[1..2].to_string(),
+                val: input.replace("\"", ""),
             }))
         } else if input.contains("|") {
             Ok(Rule::Or(OrRule {
@@ -64,7 +64,7 @@ impl Rule {
     pub fn matches(&self, msg: &str, rules: &HashMap<usize, Rule>) -> Vec<usize> {
         match self {
             Rule::Is(rule) => {
-                if msg.starts_with(&rule.val) {vec![1]} else {vec![]}
+                if msg.starts_with(&rule.val) {vec![rule.val.len()]} else {vec![]}
             },
             Rule::Or(rule) => {
                 let mut eaten = vec![];
