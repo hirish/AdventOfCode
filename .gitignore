@@ -1,1 +1,4 @@
 run.sh
+**/target/**
+**/input
+**/demo
