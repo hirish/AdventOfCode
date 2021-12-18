@@ -32,15 +32,17 @@ impl FromStr for Input {
 }
 
 fn part_1(input: Input) -> Option<isize> {
-    let x  = -input.min_y;
-    Some((5 * x * (x-1))/10)
+    let y  = -input.min_y;
+    Some((5 * y * (y-1))/10)
 }
 
 fn part_2(input: Input) -> Option<usize> {
     let Input {min_x, max_x, min_y, max_y} = input;
     let mut c = 0;
 
-    for x in 1..1+max_x {
+    let xs = (1..max_x).filter(|v| (5 * v * (v+1)) / 10 >= min_x);
+
+    for x in xs {
         for y in min_y..1-min_y {
             let mut sx = 0;
             let mut sy = 0;
@@ -66,15 +68,15 @@ fn part_2(input: Input) -> Option<usize> {
 fn main() -> Result<(), ()> {
     let now = Instant::now();
     let input: Input = read_stdin().parse()?;
-    println!("Running parsing took {}ms.", now.elapsed().as_millis());
+    println!("Running parsing took {}μs.", now.elapsed().as_micros());
 
     let now = Instant::now();
     println!("Answer 1: {}", part_1(input.clone()).ok_or(())?);
-    println!("Running part_1 took {}ms.", now.elapsed().as_millis());
+    println!("Running part_1 took {}μs.", now.elapsed().as_micros());
 
     let now = Instant::now();
     println!("Answer 2: {}", part_2(input).ok_or(())?);
-    println!("Running part_2 took {}ms.", now.elapsed().as_millis());
+    println!("Running part_2 took {}μs.", now.elapsed().as_micros());
 
     Ok(())
 }

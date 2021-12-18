@@ -63,7 +63,11 @@ struct Packet {
 }
 
 impl Packet {
-    fn new(bits: &[usize]) -> (Self, usize) {
+    fn new(bits: &[usize]) -> Self {
+        Packet::inner_new(bits).0
+    }
+
+    fn inner_new(bits: &[usize]) -> (Self, usize) {
         let mut eaten = 6;
         let version = bin_to_usize(&bits[0..3]);
 
@@ -90,7 +94,7 @@ impl Packet {
                     eaten += 15;
                     let to_eat = eaten + t;
                     while eaten < to_eat {
-                        let (packet, e) = Packet::new(&bits[eaten..]);
+                        let (packet, e) = Packet::inner_new(&bits[eaten..]);
                         eaten += e;
                         packets.push(packet);
                     }
@@ -98,7 +102,7 @@ impl Packet {
                     let no_packets = bin_to_usize(&bits[7..18]);
                     eaten += 11;
                     for _ in 0..no_packets {
-                        let (packet, e) = Packet::new(&bits[eaten..]);
+                        let (packet, e) = Packet::inner_new(&bits[eaten..]);
                         eaten += e;
                         packets.push(packet);
                     }
@@ -136,27 +140,27 @@ impl Packet {
 }
 
 fn part_1(input: Input) -> Option<usize> {
-    let (packet, _) = Packet::new(&input.data);
+    let packet = Packet::new(&input.data);
     Some(packet.version_sum())
 }
 
 fn part_2(input: Input) -> Option<usize> {
-    let (packet, _) = Packet::new(&input.data);
+    let packet = Packet::new(&input.data);
     Some(packet.calculate())
 }
 
 fn main() -> Result<(), ()> {
     let now = Instant::now();
     let input: Input = read_stdin().parse()?;
-    println!("Running parsing took {}ms.", now.elapsed().as_millis());
+    println!("Running parsing took {}μs.", now.elapsed().as_micros());
 
     let now = Instant::now();
     println!("Answer 1: {}", part_1(input.clone()).ok_or(())?);
-    println!("Running part_1 took {}ms.", now.elapsed().as_millis());
+    println!("Running part_1 took {}μs.", now.elapsed().as_micros());
 
     let now = Instant::now();
     println!("Answer 2: {}", part_2(input).ok_or(())?);
-    println!("Running part_2 took {}ms.", now.elapsed().as_millis());
+    println!("Running part_2 took {}μs.", now.elapsed().as_micros());
 
     Ok(())
 }
