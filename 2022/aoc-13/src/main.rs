@@ -1,7 +1,7 @@
 use aoc_13::read_stdin;
 
 use serde::Deserialize;
-use std::cmp::Ordering::{self, Equal, Greater, Less};
+use std::cmp::Ordering;
 
 #[derive(Clone, Deserialize, Eq, PartialEq)]
 #[serde(untagged)]
@@ -15,8 +15,7 @@ impl std::fmt::Debug for V {
         match self {
             V::Number(v) => write!(fmt, "{:?}", v),
             V::Array(v) => write!(fmt, "{:?}", v),
-        }?;
-        Ok(())
+        }
     }
 }
 
@@ -29,21 +28,20 @@ fn parse(input: String) -> Input {
         .collect()
 }
 
-fn compare(a: &V, b: &V) -> Ordering {
-    match (a, b) {
-        (V::Number(a), V::Number(b)) => b.cmp(a),
-        (V::Number(_), _) => compare(&V::Array(vec![a.clone()]), b),
-        (_, V::Number(_)) => compare(a, &V::Array(vec![b.clone()])),
-        (V::Array(a), V::Array(b)) => match (&a[..], &b[..]) {
-            ([], []) => Equal,
-            (_, []) => Less,
-            ([], _) => Greater,
-            ([a, c @ ..], [b, d @ ..]) => {
-                let c = V::Array(c.to_vec());
-                let d = V::Array(d.to_vec());
-                compare(a, b).then_with(|| compare(&c, &d))
-            }
-        },
+impl PartialOrd for V {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for V {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (V::Number(a), V::Number(b)) => a.cmp(b),
+            (V::Number(a), _) => V::Array(vec![V::Number(*a)]).cmp(other),
+            (_, V::Number(b)) => self.cmp(&V::Array(vec![V::Number(*b)])),
+            (V::Array(a), V::Array(b)) => a.cmp(b),
+        }
     }
 }
 
@@ -51,23 +49,16 @@ fn part_1(input: Input) -> usize {
     input
         .chunks(2)
         .enumerate()
-        .filter_map(|(i, j)| {
-            if compare(&j[0], &j[1]) == Greater {
-                Some(i + 1)
-            } else {
-                None
-            }
-        })
+        .filter_map(|(i, j)| if j[0] < j[1] { Some(i + 1) } else { None })
         .sum()
 }
 
 fn part_2(mut input: Input) -> usize {
-    let a = V::Array(vec![V::Array(vec![V::Number(2)])]);
-    let b = V::Array(vec![V::Array(vec![V::Number(6)])]);
+    let a: V = V::Array(vec![V::Array(vec![V::Number(2)])]);
+    let b: V = V::Array(vec![V::Array(vec![V::Number(6)])]);
     input.push(a.clone());
     input.push(b.clone());
-    input.sort_by(compare);
-    input.reverse();
+    input.sort();
     let x = input.iter().position(|x| x == &a).unwrap() + 1;
     let y = input.iter().position(|x| x == &b).unwrap() + 1;
     x * y
