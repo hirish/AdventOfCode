@@ -12,6 +12,10 @@ impl IntSet {
         set
     }
 
+    pub fn new_with(v: usize) -> Self {
+        Self {v}
+    }
+
     pub fn insert(&mut self, id: u8) {
         self.v |= 1 << id
     }
@@ -36,5 +40,19 @@ impl IntSet {
             v >>= 1
         }
         ids
+    }
+
+    pub fn len(&self) -> usize {
+        let mut v = self.v;
+        let mut l = 0;
+        while v > 0 {
+            if v % 2 == 1 {l += 1};
+            v >>= 1;
+        }
+        l
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.v == 0
     }
 }

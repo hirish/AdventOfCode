@@ -9,10 +9,8 @@ use lazy_static::lazy_static;
 use rayon::prelude::*;
 use std::{sync::Mutex, time::Instant};
 
-type Hash = u64;
-
 lazy_static! {
-    static ref CACHE: Mutex<FxHashMap<Hash, usize>> = Mutex::new(FxHashMap::default());
+    static ref CACHE: Mutex<FxHashMap<State, usize>> = Mutex::new(FxHashMap::default());
 }
 
 type Id = u8;
@@ -24,13 +22,28 @@ struct Valve {
     tunnels: Vec<Id>,
 }
 
-type Input = Vec<Valve>;
+type InputOld = Vec<Valve>;
+
+#[derive(Clone)]
+struct Input {
+    rates: FxHashMap<Id, u8>,
+    shortest_paths: FxHashMap<(Id, Id), u8>,
+}
 
 fn parse(input: String) -> Input {
     let mut nodes: FxHashMap<String, Id> = FxHashMap::default();
     nodes.insert("AA".to_string(), 0);
 
-    let mut vs: Input = input
+    input
+        .lines()
+        .filter(|l| !l.contains("rate=0"))
+        .for_each(|line| {
+            let line = line.strip_prefix("Valve ").unwrap();
+            let line = line.split_once(' ').unwrap().0;
+            nodes.insert(line.to_string(), nodes.len() as u8);
+        });
+
+    let mut vs: InputOld = input
         .lines()
         .map(|l| {
             let l = l.replace("tunnels", "tunnel");
@@ -59,10 +72,26 @@ fn parse(input: String) -> Input {
         .collect();
 
     vs.sort_by_key(|v| v.id);
-    vs
+
+    let shortest_paths = get_shortest_paths(&vs);
+    let rates: FxHashMap<Id, u8> = vs
+        .iter()
+        .filter_map(|v| {
+            if v.id == 0 || v.rate > 0 {
+                Some((v.id, v.rate as u8))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Input {
+        shortest_paths,
+        rates,
+    }
 }
 
-fn get_shortest_paths(input: &Input) -> FxHashMap<(Id, Id), u8> {
+fn get_shortest_paths(input: &InputOld) -> FxHashMap<(Id, Id), u8> {
     let graph = input
         .iter()
         .map(|v| (v.id, Node::new(v.id, v.tunnels.clone())))
@@ -92,175 +121,99 @@ fn key(a: &Id, b: &Id) -> (Id, Id) {
     (*a.min(b), *a.max(b))
 }
 
-fn search(
-    input: &Input,
-    shortest_paths: &FxHashMap<(Id, Id), u8>,
-    mut visited: usize,
-    time_left: usize,
-    current: &Valve,
-    vented: usize,
-) -> usize {
-    visited |= 1 << current.id;
-
-    input
-        .par_iter()
-        .filter_map(|v| {
-            if v.rate == 0 {
-                return None;
-            }
-            if ((visited >> v.id) & 1) > 0 {
-                return None;
-            }
-            let k = key(&v.id, &current.id);
-            let distance_to = shortest_paths.get(&k).unwrap();
-            if *distance_to >= time_left as u8 {
-                return None;
-            }
-
-            Some(search(
-                input,
-                shortest_paths,
-                visited,
-                time_left - *distance_to as usize - 1,
-                v,
-                (current.rate * time_left) + vented,
-            ))
-        })
-        .max()
-        .unwrap_or(current.rate * time_left + vented)
-}
-
-fn part_1(input: Input) -> usize {
-    let shortest_paths = get_shortest_paths(&input);
-    let start = &input[0];
-    search(&input, &shortest_paths, 0, 30, start, 0)
-}
-
-#[derive(Clone, Eq, PartialEq)]
-struct State<'a> {
+#[derive(Clone, Eq, PartialEq, Hash)]
+struct State {
     remaining: IntSet,
-    time_left: (u8, u8),
-    current: (Id, Id),
-    rates: &'a FxHashMap<Id, u8>,
-    shortest_paths: &'a FxHashMap<(Id, Id), u8>,
+    time_left: u8,
+    current: Id,
 }
 
-impl std::hash::Hash for State<'_> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.remaining.hash(state);
-        self.time_left.hash(state);
-        self.current.hash(state);
-    }
-}
-
-impl State<'_> {
-    fn new<'a>(
-        remaining: IntSet,
-        (ta, tb): (u8, u8),
-        (ca, cb): (Id, Id),
-        rates: &'a FxHashMap<Id, u8>,
-        shortest_paths: &'a FxHashMap<(Id, Id), u8>,
-    ) -> State<'a> {
-        State::<'a> {
+impl State {
+    fn new(remaining: IntSet, time_left: u8, current: Id) -> State {
+        State {
             remaining,
-            time_left: if ta > tb { (ta, tb) } else { (tb, ta) },
-            current: if ta > tb { (ca, cb) } else { (cb, ca) },
-            rates,
-            shortest_paths,
+            time_left,
+            current,
         }
     }
 
-    fn neighbours(&self) -> Vec<(Self, usize)> {
+    fn neighbours(
+        &self,
+        rates: &FxHashMap<Id, u8>,
+        shortest_paths: &FxHashMap<(Id, Id), u8>,
+    ) -> Vec<(Self, usize)> {
         let mut neighbours = vec![];
 
         for id in self.remaining.items() {
             let mut remaining = self.remaining;
             remaining.remove(id);
 
-            let distance_to = self.shortest_paths[&key(&id, &self.current.0)];
-            if distance_to < self.time_left.0 {
-                let new_time_left = self.time_left.0 - distance_to - 1;
+            let distance_to = shortest_paths[&key(&id, &self.current)];
+            if distance_to < self.time_left {
+                let new_time_left = self.time_left - distance_to - 1;
                 neighbours.push((
-                    State::new(
-                        remaining,
-                        (new_time_left, self.time_left.1),
-                        (id, self.current.1),
-                        self.rates,
-                        self.shortest_paths,
-                    ),
-                    (new_time_left as usize * self.rates[&id] as usize),
-                ))
-            }
-
-            let distance_to = self.shortest_paths[&key(&id, &self.current.1)];
-            if distance_to < self.time_left.1 {
-                let new_time_left = self.time_left.1 - distance_to - 1;
-                neighbours.push((
-                    State::new(
-                        remaining,
-                        (new_time_left, self.time_left.0),
-                        (id, self.current.0),
-                        self.rates,
-                        self.shortest_paths,
-                    ),
-                    (new_time_left as usize * self.rates[&id] as usize),
+                    State::new(remaining, new_time_left, id),
+                    (new_time_left as usize * rates[&id] as usize),
                 ))
             }
         }
 
         neighbours
     }
-
-    fn hash(&self) -> Hash {
-        ((self.remaining.v as u64) * 100000000)
-            + ((self.current.0 as u64) * 1000000)
-            + ((self.current.1 as u64) * 10000)
-            + ((self.time_left.0 as u64) * 100)
-            + (self.time_left.1 as u64)
-    }
 }
 
-fn search_2(state: State) -> usize {
-    let hash = state.hash();
+fn search(
+    state: State,
+    rates: &FxHashMap<Id, u8>,
+    shortest_paths: &FxHashMap<(Id, Id), u8>,
+) -> usize {
     {
         let x = CACHE.lock().unwrap();
-        if x.contains_key(&hash) {
-            return x[&hash];
+        if x.contains_key(&state) {
+            return x[&state];
         }
     }
 
     let v = state
-        .neighbours()
+        .neighbours(rates, shortest_paths)
         .into_par_iter()
-        .map(|(new_state, vented)| vented + search_2(new_state))
+        .map(|(new_state, vented)| vented + search(new_state, rates, shortest_paths))
         .max()
         .unwrap_or(0);
 
     {
-        CACHE.lock().unwrap().insert(hash, v);
+        CACHE.lock().unwrap().insert(state, v);
     }
 
     v
 }
 
-fn part_2(input: Input) -> usize {
-    let shortest_paths = get_shortest_paths(&input);
-    let rates: FxHashMap<Id, u8> = input
-        .iter()
-        .filter_map(|v| {
-            if v.id == 0 || v.rate > 0 {
-                Some((v.id, v.rate as u8))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    let mut remaining = IntSet::new(&rates.keys().copied().collect());
+fn part_1(input: Input) -> usize {
+    let mut remaining = IntSet::new(&input.rates.keys().copied().collect());
     remaining.remove(0);
 
-    let s = State::new(remaining, (26, 26), (0, 0), &rates, &shortest_paths);
-    search_2(s)
+    let s = State::new(remaining, 30, 0);
+    search(s, &input.rates, &input.shortest_paths)
+}
+
+fn part_2(input: Input) -> usize {
+    let mut remaining = IntSet::new(&input.rates.keys().copied().collect());
+    remaining.remove(0);
+
+    (1..remaining.v)
+        .filter(|v| v % 2 != 1)
+        .par_bridge()
+        .map(|v| (IntSet::new_with(v), IntSet::new_with(remaining.v - v)))
+        .map(|(me, elephant)| {
+            search(State::new(me, 26, 0), &input.rates, &input.shortest_paths)
+                + search(
+                    State::new(elephant, 26, 0),
+                    &input.rates,
+                    &input.shortest_paths,
+                )
+        })
+        .max()
+        .unwrap()
 }
 
 fn main() {
