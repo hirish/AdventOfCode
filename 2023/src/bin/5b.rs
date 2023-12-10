@@ -2,9 +2,10 @@ use std::time::Instant;
 
 use aoc2024::read_stdin;
 
-type SeedRange = (isize, isize);
+type Seed = usize;
+type SeedRange = (Seed, Seed);
 type SeedRanges = Vec<SeedRange>;
-type Map = Vec<(isize, isize, isize)>;
+type Map = Vec<(Seed, Seed, usize)>;
 
 fn map(m: &Map, seed: SeedRange) -> SeedRanges {
     let mut seeds = vec![seed];
@@ -56,7 +57,7 @@ fn parse_map(input: &str) -> Map {
         .lines()
         .skip(1)
         .map(|l| {
-            let mut l = l.split_whitespace().map(|n| n.parse::<isize>().unwrap());
+            let mut l = l.split_whitespace().map(|n| n.parse::<Seed>().unwrap());
             (l.next().unwrap(), l.next().unwrap(), l.next().unwrap())
         })
         .collect()
@@ -70,7 +71,7 @@ fn parse(input: String) -> Input {
         .1
         .split_whitespace()
         .map(|x| x.parse().unwrap())
-        .collect::<Vec<isize>>()
+        .collect::<Vec<Seed>>()
         .chunks(2)
         .map(|v| (v[0], v[0] + v[1] - 1))
         .collect::<SeedRanges>();
