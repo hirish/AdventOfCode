@@ -1,11 +1,12 @@
-use std::{collections::HashSet, time::Instant};
+use std::time::Instant;
 
 use aoc2024::read_stdin;
+use rustc_hash::FxHashSet;
 
 #[derive(Hash, Eq, PartialEq, Debug)]
 struct Coord(isize, isize);
 
-struct Map(HashSet<Coord>);
+struct Map(FxHashSet<Coord>);
 
 impl Map {
     fn h(&self) -> isize {
