@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use aoc2024::read_stdin;
 
 type Input = Vec<String>;
@@ -55,8 +57,12 @@ fn rfind(s: &str) -> u32 {
 }
 
 fn main() {
+    let start = Instant::now();
     let input = read_stdin();
     let lines = parse(input);
+    let parse_time = start.elapsed();
+    let parsed = Instant::now();
+
     let v: u32 = lines
         .into_iter()
         .map(|s| {
@@ -67,4 +73,7 @@ fn main() {
         .sum();
 
     println!("{}", v);
+    println!("Parse time\t{}μs.", parse_time.as_micros());
+    println!("Execution time\t{}μs.", parsed.elapsed().as_micros());
+    println!("Total time\t{}μs.", start.elapsed().as_micros());
 }

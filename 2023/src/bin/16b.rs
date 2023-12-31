@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use aoc2024::read_stdin;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Copy)]
@@ -130,6 +131,7 @@ fn main() {
     let parsed = Instant::now();
 
     let v: usize = (0..=map.1)
+        .into_par_iter()
         .flat_map(|i| {
             [
                 trace(&map, Coord(0, i), Dir::E),
